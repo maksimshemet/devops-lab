@@ -6,27 +6,41 @@
   tasks:
   - name: SSL dir
     file:
-      path: /etc/ssl/certs/lab.registry.com
+      path: /etc/ssl/certs/{{ domain }}
+      state: directory
+
+  - name: docker add ca
+    file:
+      path: /etc/docker/certs.d/{{ domain }}
       state: directory
 
   - name: Generate an OpenSSL priv key
     community.crypto.openssl_privatekey:
-      path: /etc/ssl/certs/lab.registry.com/certificate.key
+      path: /etc/ssl/certs/{{ domain }}/certificate.key
 
   - name: Create certificate signing request
     community.crypto.openssl_csr_pipe:
-      privatekey_path: /etc/ssl/certs/lab.registry.com/certificate.key
+      privatekey_path: /etc/ssl/certs/{{ domain }}/certificate.key
       common_name: lab.registry.com
       organization_name: Home lab
     register: csr
 
   - name: Create self-signed certificate from CSR
     community.crypto.x509_certificate:
-      path:  /etc/ssl/certs/lab.registry.com/certificate.pem
+      path:  /etc/ssl/certs/{{ domain }}/certificate.pem
       csr_content: "{{ csr.csr }}"
-      privatekey_path:  /etc/ssl/certs/lab.registry.com/certificate.key
+      privatekey_path:  /etc/ssl/certs/{{ domain }}/certificate.key
       provider: selfsigned
-  
+
+  - name: copy ca cert
+    copy:
+      src: /etc/ssl/certs/{{ domain }}/certificate.pem
+      dest: /etc/docker/certs.d/{{ domain }}/ca.crt
+      owner: root
+      group: root
+      mode: "0644"
+    notify: restart docker
+
   - name: apt-get update
     apt:
       update_cache: yes
@@ -56,5 +70,9 @@
     - name: restart nginx
       service: 
         name: nginx
+        state: restarted
+    - name: restart docker
+      service:
+        name: docker
         state: restarted
 
