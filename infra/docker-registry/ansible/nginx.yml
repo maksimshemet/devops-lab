@@ -1,0 +1,60 @@
+- hosts: localhost
+  connection: local
+  become: yes
+  vars:
+    domain: lab.registry.com
+  tasks:
+  - name: SSL dir
+    file:
+      path: /etc/ssl/certs/lab.registry.com
+      state: directory
+
+  - name: Generate an OpenSSL priv key
+    community.crypto.openssl_privatekey:
+      path: /etc/ssl/certs/lab.registry.com/certificate.key
+
+  - name: Create certificate signing request
+    community.crypto.openssl_csr_pipe:
+      privatekey_path: /etc/ssl/certs/lab.registry.com/certificate.key
+      common_name: lab.registry.com
+      organization_name: Home lab
+    register: csr
+
+  - name: Create self-signed certificate from CSR
+    community.crypto.x509_certificate:
+      path:  /etc/ssl/certs/lab.registry.com/certificate.pem
+      csr_content: "{{ csr.csr }}"
+      privatekey_path:  /etc/ssl/certs/lab.registry.com/certificate.key
+      provider: selfsigned
+  
+  - name: apt-get update
+    apt:
+      update_cache: yes
+      cache_valid_time: 3600
+  
+  - name: nginx install
+    apt:
+      name: ['nginx']
+      state: latest
+
+  - name: delete default nginx
+    file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
+    notify: restart nginx
+
+  - name: copy site.conf
+    template:
+      src: site.conf.j2
+      dest: /etc/nginx/sites-enabled/{{ domain }}
+      owner: root
+      group: root
+      mode: '0644'
+    notify: restart nginx
+
+  handlers:
+    - name: restart nginx
+      service: 
+        name: nginx
+        state: restarted
+

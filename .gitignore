@@ -1,0 +1,2 @@
+infra/docker-registry/auth/*
+infra/docker-registry/data/*
