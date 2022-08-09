@@ -13,6 +13,16 @@
     file:
       path: /etc/docker/certs.d/{{ domain }}
       state: directory
+  
+  - name: create auth folder for registry
+    file: 
+      path: "{{ lookup('env', 'PWD') }}/registry/auth"
+      state: directory
+  
+  - name: create auth folder for registry
+    file:
+      path: "{{ lookup('env', 'PWD') }}/registry/data"
+      state: directory
 
   - name: Generate an OpenSSL priv key
     community.crypto.openssl_privatekey:
@@ -51,6 +61,11 @@
       name: ['nginx']
       state: latest
 
+  - name: appache2 utis install
+    apt:
+      name: ['apache2-utils']
+      state: latest
+
   - name: delete default nginx
     file:
       path: /etc/nginx/sites-enabled/default
@@ -65,6 +80,25 @@
       group: root
       mode: '0644'
     notify: restart nginx
+
+  - name: replace nginx.conf
+    copy:
+      src: files/nginx.conf
+      dest: /etc/nginx/nginx.conf
+    notify: restart nginx
+
+  - name: create registry user string
+    shell:
+      cmd: htpasswd -bBc registry.password admin password 
+      chdir: registry/auth
+
+  - name: create and start registry service
+    docker_compose:
+      project_src: registry
+    register: output
+
+  - debug:
+      var: output
 
   handlers:
     - name: restart nginx
